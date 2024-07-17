@@ -8,6 +8,7 @@ use crate::utils::file_utils::get_files;
 /// Analyze paths, find dependencies and write the SBOM to disk.
 /// The [configuration] is the configuration of the tool (directory to scan, etc)
 pub fn analyze(configuration: &Configuration) -> anyhow::Result<()> {
+    let mut dependencies = vec![];
     if configuration.use_debug {
         configuration.print_configuration();
     }
@@ -28,9 +29,20 @@ pub fn analyze(configuration: &Configuration) -> anyhow::Result<()> {
             .filter(|f| sbom_producer.use_file(f, &producer_configuration))
             .map(|v| (*v).clone())
             .collect::<Vec<PathBuf>>();
-        let _dependencies = sbom_producer
-            .find_dependencies(producer_files.as_slice(), &producer_configuration)
-            .expect("find dependencies");
+        let dependencies_found =
+            sbom_producer.find_dependencies(producer_files.as_slice(), &producer_configuration);
+
+        if let Ok(deps) = dependencies_found {
+            dependencies.extend(deps);
+        }
+    }
+
+    for dep in dependencies.iter() {
+        println!(
+            "dependency name={} version={}",
+            dep.name,
+            dep.version.clone().unwrap_or("no version".to_string())
+        )
     }
 
     Ok(())

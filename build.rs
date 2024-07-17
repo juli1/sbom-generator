@@ -54,11 +54,11 @@ fn main() {
         TreeSitterProject {
             name: "tree-sitter-xml".to_string(),
             compilation_unit: "tree-sitter-xml".to_string(),
-            repository: "https://github.com/dorgnarg/tree-sitter-xml.git".to_string(),
-            commit_hash: "36dd54f701e3b3e030412a854295af971cf74ad1".to_string(),
-            build_dir: "src".into(),
-            files: vec!["parser.c".to_string(), "binding.cc".to_string()],
-            cpp: true,
+            repository: "https://github.com/tree-sitter-grammars/tree-sitter-xml.git".to_string(),
+            build_dir: "xml/src".into(),
+            commit_hash: "648183d86f6f8ffb240ea11b4c6873f6f45d8b67".to_string(),
+            files: vec!["parser.c".to_string(), "scanner.c".to_string()],
+            cpp: false,
         },
         TreeSitterProject {
             name: "tree-sitter-json".to_string(),
