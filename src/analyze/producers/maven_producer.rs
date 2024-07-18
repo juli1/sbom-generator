@@ -6,7 +6,9 @@ use derive_builder::Builder;
 use regex::Regex;
 
 use crate::analyze::producers::producer::{SbomProducer, SbomProducerConfiguration};
-use crate::model::dependency::{Dependency, DependencyBuilder, DependencyType};
+use crate::model::dependency::{Dependency, DependencyBuilder, DependencyLocation, DependencyType};
+use crate::model::location::Location;
+use crate::model::position::get_position_in_string;
 use crate::utils::tree_sitter::language::get_tree_sitter_xml;
 use crate::utils::tree_sitter::tree::get_tree;
 
@@ -58,7 +60,7 @@ const TREE_SITTER_QUERY_DEPENDENCIES: &str = r###"
    )
    (#eq? @name "dependency")
    (#match? @tag "^artifactId$|^groupId$|^version$")
-)
+)@element
 "###;
 
 pub struct MavenProducerContext {
@@ -98,6 +100,7 @@ impl MavenProducer {
     fn find_dependencies_from_tree(
         &self,
         tree: &tree_sitter::Tree,
+        path: &Path,
         content: &str,
         _configuration: &SbomProducerConfiguration,
         context: &MavenProducerContext,
@@ -116,11 +119,28 @@ impl MavenProducer {
             let mut artifact_id_opt = None;
             let mut version_opt = None;
 
-            if m.captures.len() == 1 {
+            let mut name_position_opt: Option<Location> = None;
+            let mut version_position_opt: Option<Location> = None;
+
+            if m.captures.len() <= 1 {
                 continue;
             }
 
-            for i in (1..m.captures.len()).step_by(2) {
+            // the @element query
+            let element_block = m.captures[0].node;
+            let element = content[element_block.start_byte()..element_block.end_byte()].to_string();
+
+            let block_position_opt = Some(Location {
+                file: path.file_name().unwrap().to_str().unwrap().to_string(),
+                start: get_position_in_string(content, element_block.start_byte())
+                    .expect("cannot find start"),
+                end: get_position_in_string(content, element_block.end_byte())
+                    .expect("cannot find end"),
+            });
+
+            println!("element={}", element);
+
+            for i in (2..m.captures.len()).step_by(2) {
                 let tag_node = m.captures[i].node;
                 let value_node = m.captures[i + 1].node;
 
@@ -129,12 +149,28 @@ impl MavenProducer {
 
                 if tag == ARTIFACT_ID {
                     artifact_id_opt = Some(value.clone());
+
+                    name_position_opt = Some(Location {
+                        file: path.file_name().unwrap().to_str().unwrap().to_string(),
+                        start: get_position_in_string(content, value_node.start_byte())
+                            .expect("cannot find start"),
+                        end: get_position_in_string(content, value_node.end_byte())
+                            .expect("cannot find end"),
+                    });
                 }
                 if tag == GROUP_ID {
                     group_id_opt = Some(value.clone());
                 }
                 if tag == VERSION {
                     version_opt = Some(value.clone());
+
+                    version_position_opt = Some(Location {
+                        file: path.file_name().unwrap().to_str().unwrap().to_string(),
+                        start: get_position_in_string(content, value_node.start_byte())
+                            .expect("cannot find start"),
+                        end: get_position_in_string(content, value_node.end_byte())
+                            .expect("cannot find end"),
+                    });
                 }
             }
 
@@ -151,13 +187,28 @@ impl MavenProducer {
                         version.clone_from(variables.get(&variable_value).unwrap())
                     }
                 }
+
+                let location = if let (Some(name_pos), Some(version_pos), Some(block_pos)) =
+                    (name_position_opt, version_position_opt, block_position_opt)
+                {
+                    Some(DependencyLocation {
+                        block: block_pos,
+                        version: version_pos,
+                        name: name_pos,
+                    })
+                } else {
+                    None
+                };
+
+                let dependency_name = format!("{}:{}", group_id.clone(), version.clone());
+
                 dependencies.push(
                     DependencyBuilder::default()
                         .r#type(DependencyType::Library)
-                        .name(group_id.clone())
+                        .name(dependency_name)
                         .version(Some(version.to_string()))
                         .purl("purl".to_string())
-                        .locations(vec![])
+                        .location(location)
                         .build()
                         .unwrap(),
                 )
@@ -176,7 +227,7 @@ impl MavenProducer {
         let file_content = fs::read_to_string(path);
         if let Ok(content) = file_content {
             if let Some(t) = get_tree(content.as_str(), &context.language) {
-                self.find_dependencies_from_tree(&t, content.as_str(), configuration, context)
+                self.find_dependencies_from_tree(&t, path, content.as_str(), configuration, context)
             } else {
                 if configuration.use_debug {
                     eprintln!("cannot build tree for file {}", path.display());

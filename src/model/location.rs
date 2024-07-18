@@ -2,12 +2,12 @@ use derive_builder::Builder;
 
 use crate::model::position::Position;
 
-#[derive(Builder, Clone)]
+#[derive(Builder, Clone, Default)]
 pub struct Location {
     #[allow(dead_code)]
-    file: String,
+    pub file: String,
     #[allow(dead_code)]
-    start: Position,
+    pub start: Position,
     #[allow(dead_code)]
-    end: Position,
+    pub end: Position,
 }

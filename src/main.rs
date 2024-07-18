@@ -8,6 +8,7 @@ use crate::model::configuration::Configuration;
 
 mod analyze;
 mod model;
+mod sbom;
 mod utils;
 
 fn print_usage(program: &str, opts: Options) {

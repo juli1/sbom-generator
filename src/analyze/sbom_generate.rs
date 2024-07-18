@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use crate::analyze::producers::maven_producer::MavenProducerBuilder;
 use crate::analyze::producers::producer::{SbomProducer, SbomProducerConfiguration};
 use crate::model::configuration::Configuration;
+use crate::sbom::generate::generate_sbom;
 use crate::utils::file_utils::get_files;
 
 /// Analyze paths, find dependencies and write the SBOM to disk.
@@ -44,6 +45,6 @@ pub fn analyze(configuration: &Configuration) -> anyhow::Result<()> {
             dep.version.clone().unwrap_or("no version".to_string())
         )
     }
-
+    generate_sbom(dependencies, configuration).expect("cannot generate SBOM");
     Ok(())
 }
