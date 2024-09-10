@@ -2,23 +2,23 @@ use derive_builder::Builder;
 
 use crate::model::location::Location;
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub enum DependencyType {
     #[default]
     Library,
 }
 
-#[derive(Builder, Clone, Default)]
+#[derive(Builder, Clone, Default, Debug)]
 pub struct DependencyLocation {
     #[allow(dead_code)]
     pub block: Location,
     #[allow(dead_code)]
     pub name: Location,
     #[allow(dead_code)]
-    pub version: Location,
+    pub version: Option<Location>,
 }
 
-#[derive(Builder, Clone, Default)]
+#[derive(Builder, Clone, Default, Debug)]
 pub struct Dependency {
     #[allow(dead_code)]
     pub r#type: DependencyType,

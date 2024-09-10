@@ -1,10 +1,9 @@
-use std::path::PathBuf;
-
-use crate::analyze::producers::maven_producer::MavenProducerBuilder;
+use crate::analyze::producers::maven::maven_producer::MavenProducerBuilder;
 use crate::analyze::producers::producer::{SbomProducer, SbomProducerConfiguration};
 use crate::model::configuration::Configuration;
 use crate::sbom::generate::generate_sbom;
 use crate::utils::file_utils::get_files;
+use std::path::PathBuf;
 
 /// Analyze paths, find dependencies and write the SBOM to disk.
 /// The [configuration] is the configuration of the tool (directory to scan, etc)
@@ -39,10 +38,14 @@ pub fn analyze(configuration: &Configuration) -> anyhow::Result<()> {
     }
 
     for dep in dependencies.iter() {
+        let dep_file = dep.location.as_ref().map(|v| v.block.file.clone()).unwrap_or("no file".to_string());
+        let dep_line = dep.location.as_ref().map(|v| v.block.start.line);
         println!(
-            "dependency name={} version={}",
+            "dependency name={} version={}, file={}, line={:?}",
             dep.name,
-            dep.version.clone().unwrap_or("no version".to_string())
+            dep.version.clone().unwrap_or("no version".to_string()),
+            dep_file,
+            dep_line
         )
     }
     generate_sbom(dependencies, configuration).expect("cannot generate SBOM");

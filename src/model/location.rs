@@ -2,7 +2,7 @@ use derive_builder::Builder;
 
 use crate::model::position::Position;
 
-#[derive(Builder, Clone, Default)]
+#[derive(Builder, Clone, Default, Debug)]
 pub struct Location {
     #[allow(dead_code)]
     pub file: String,

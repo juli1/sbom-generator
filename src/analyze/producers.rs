@@ -1,2 +1,2 @@
-pub mod maven_producer;
+pub mod maven;
 pub mod producer;

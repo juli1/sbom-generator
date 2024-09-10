@@ -4,12 +4,12 @@ use bstr::BStr;
 use bstr::ByteSlice;
 use derive_builder::Builder;
 
-#[derive(Builder, Clone, Copy)]
+#[derive(Builder, Clone, Copy, Debug)]
 pub struct Position {
     #[allow(dead_code)]
-    line: NonZeroU32,
+    pub line: NonZeroU32,
     #[allow(dead_code)]
-    col: NonZeroU32,
+    pub col: NonZeroU32,
 }
 
 impl Default for Position {

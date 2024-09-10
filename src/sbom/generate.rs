@@ -18,8 +18,10 @@ pub fn generate_sbom(
             let mut component_builder = binding.name(d.name.to_string()).type_("library");
 
             if let Some(v) = d.version {
-                component_builder = component_builder.version(v);
+                component_builder = component_builder.version(&v);
+                component_builder.purl(format!("pkg:maven/{}/@{}", d.name, &v).to_string());
             }
+
 
             component_builder.build().unwrap()
         })
