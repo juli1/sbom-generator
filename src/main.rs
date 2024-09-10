@@ -2,21 +2,15 @@ use std::env;
 use std::process::exit;
 
 use getopts::Options;
-
-use crate::analyze::sbom_generate::analyze;
-use crate::model::configuration::Configuration;
-
-mod analyze;
-mod model;
-mod sbom;
-mod utils;
+use sbom_generator::analyze::sbom_generate::analyze;
+use sbom_generator::model::configuration::Configuration;
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} FILE [options]", program);
     print!("{}", opts.usage(&brief));
 }
 
-fn main() {
+pub fn main() {
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
 

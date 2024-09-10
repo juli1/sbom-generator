@@ -38,7 +38,11 @@ pub fn analyze(configuration: &Configuration) -> anyhow::Result<()> {
     }
 
     for dep in dependencies.iter() {
-        let dep_file = dep.location.as_ref().map(|v| v.block.file.clone()).unwrap_or("no file".to_string());
+        let dep_file = dep
+            .location
+            .as_ref()
+            .map(|v| v.block.file.clone())
+            .unwrap_or("no file".to_string());
         let dep_line = dep.location.as_ref().map(|v| v.block.start.line);
         println!(
             "dependency name={} version={}, file={}, line={:?}",

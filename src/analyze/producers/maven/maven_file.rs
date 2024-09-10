@@ -14,28 +14,26 @@ use std::str::FromStr;
 
 #[derive(Clone, Builder)]
 pub struct MavenDependency {
-    group_id: String,
-    artifact_id: String,
+    pub group_id: String,
+    pub artifact_id: String,
     #[builder(default = "None")]
-    version: Option<String>,
+    pub version: Option<String>,
     #[builder(default = "None")]
-    r#type: Option<MavenDependencyType>,
+    pub r#type: Option<MavenDependencyType>,
     #[builder(default = "None")]
-    scope: Option<MavenDependencyScope>,
+    pub scope: Option<MavenDependencyScope>,
     #[builder(default = "None")]
     #[allow(dead_code)]
-    location: Option<DependencyLocation>,
+    pub location: Option<DependencyLocation>,
 }
 
 #[derive(Clone, Builder, Default)]
 pub struct MavenFile {
-    #[allow(dead_code)]
-    path: PathBuf,
-    properties: HashMap<String, String>,
-    dependency_management: Vec<MavenDependency>,
-    dependencies: Vec<MavenDependency>,
+    pub path: PathBuf,
+    pub properties: HashMap<String, String>,
+    pub dependency_management: Vec<MavenDependency>,
+    pub dependencies: Vec<MavenDependency>,
 }
-
 
 fn get_dependencies_from_dependency_maanagement(
     tree: &tree_sitter::Tree,
@@ -122,8 +120,7 @@ fn get_dependencies_from_dependency_maanagement(
             }
         }
 
-        if let (Some(group_id), Some(artifact_id)) =
-            (group_id_opt.clone(), artifact_id_opt.clone())
+        if let (Some(group_id), Some(artifact_id)) = (group_id_opt.clone(), artifact_id_opt.clone())
         {
             let location = if let (Some(block_pos), Some(name_pos)) =
                 (block_position_opt, name_position_opt)
@@ -136,7 +133,6 @@ fn get_dependencies_from_dependency_maanagement(
             } else {
                 None
             };
-
 
             dependencies.push(
                 MavenDependencyBuilder::default()
@@ -237,8 +233,7 @@ fn get_dependencies(
             }
         }
 
-        if let (Some(group_id), Some(artifact_id)) =
-            (group_id_opt.clone(), artifact_id_opt.clone())
+        if let (Some(group_id), Some(artifact_id)) = (group_id_opt.clone(), artifact_id_opt.clone())
         {
             let location = if let (Some(block_pos), Some(name_pos)) =
                 (block_position_opt, name_position_opt)
@@ -251,7 +246,6 @@ fn get_dependencies(
             } else {
                 None
             };
-
 
             dependencies.push(
                 MavenDependencyBuilder::default()
@@ -270,7 +264,7 @@ fn get_dependencies(
     Ok(dependencies)
 }
 
-fn get_variables(
+pub fn get_variables(
     tree: &tree_sitter::Tree,
     file_content: &str,
     maven_producer_context: &MavenProducerContext,
@@ -310,13 +304,18 @@ fn get_variables(
 }
 
 impl MavenFile {
-    fn new(path: &PathBuf, context: &MavenProducerContext) -> anyhow::Result<Self> {
+    pub fn new(path: &PathBuf, context: &MavenProducerContext) -> anyhow::Result<Self> {
         let file_content = fs::read_to_string(path);
         if let Ok(content) = file_content {
             if let Some(t) = get_tree(content.as_str(), &context.language) {
                 let variables = get_variables(&t, content.as_str(), context);
                 let dependencies = get_dependencies(&t, path, content.as_str(), context);
-                let dependency_management = get_dependencies_from_dependency_maanagement(&t, path, content.as_str(), context);
+                let dependency_management = get_dependencies_from_dependency_maanagement(
+                    &t,
+                    path,
+                    content.as_str(),
+                    context,
+                );
 
                 let maven_file = MavenFile {
                     path: path.clone(),
@@ -334,7 +333,6 @@ impl MavenFile {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -348,9 +346,21 @@ mod tests {
 
         assert_eq!(maven_file.dependencies.len(), 15);
         assert_eq!(maven_file.properties.len(), 9);
-        assert_eq!(maven_file.properties.get("project.build.sourceEncoding").unwrap(), "UTF-8");
-        assert_eq!(maven_file.properties.get("json.version").unwrap(), "20090211");
-        assert_eq!(maven_file.properties.get("project.version").unwrap(), "1.2-SNAPSHOT");
+        assert_eq!(
+            maven_file
+                .properties
+                .get("project.build.sourceEncoding")
+                .unwrap(),
+            "UTF-8"
+        );
+        assert_eq!(
+            maven_file.properties.get("json.version").unwrap(),
+            "20090211"
+        );
+        assert_eq!(
+            maven_file.properties.get("project.version").unwrap(),
+            "1.2-SNAPSHOT"
+        );
     }
 
     #[test]
@@ -375,13 +385,19 @@ mod tests {
         assert!(maven_file.dependencies[1].version.is_none());
 
         assert_eq!(maven_file.dependencies[2].group_id, "io.quarkus");
-        assert_eq!(maven_file.dependencies[2].artifact_id, "quarkus-rest-jackson");
+        assert_eq!(
+            maven_file.dependencies[2].artifact_id,
+            "quarkus-rest-jackson"
+        );
         assert!(maven_file.dependencies[2].r#type.is_none());
         assert!(maven_file.dependencies[2].scope.is_none());
         assert!(maven_file.dependencies[2].version.is_none());
 
         assert_eq!(maven_file.dependencies[3].group_id, "io.quarkus");
-        assert_eq!(maven_file.dependencies[3].artifact_id, "quarkus-rest-client-jackson");
+        assert_eq!(
+            maven_file.dependencies[3].artifact_id,
+            "quarkus-rest-client-jackson"
+        );
         assert!(maven_file.dependencies[3].r#type.is_none());
         assert!(maven_file.dependencies[3].scope.is_none());
         assert!(maven_file.dependencies[3].version.is_none());
@@ -389,29 +405,59 @@ mod tests {
         assert_eq!(maven_file.dependencies[4].group_id, "io.quarkus");
         assert_eq!(maven_file.dependencies[4].artifact_id, "quarkus-junit5");
         assert!(maven_file.dependencies[4].r#type.is_none());
-        assert_eq!(maven_file.dependencies[4].scope.clone().unwrap(), MavenDependencyScope::Test);
+        assert_eq!(
+            maven_file.dependencies[4].scope.clone().unwrap(),
+            MavenDependencyScope::Test
+        );
         assert!(maven_file.dependencies[4].version.is_none());
 
         assert_eq!(maven_file.dependencies[5].group_id, "io.rest-assured");
         assert_eq!(maven_file.dependencies[5].artifact_id, "rest-assured");
         assert!(maven_file.dependencies[5].r#type.is_none());
-        assert_eq!(maven_file.dependencies[5].scope.clone().unwrap(), MavenDependencyScope::Test);
+        assert_eq!(
+            maven_file.dependencies[5].scope.clone().unwrap(),
+            MavenDependencyScope::Test
+        );
         assert!(maven_file.dependencies[5].version.is_none());
 
         assert_eq!(maven_file.dependencies[6].group_id, "org.wiremock");
         assert_eq!(maven_file.dependencies[6].artifact_id, "wiremock");
         assert!(maven_file.dependencies[6].r#type.is_none());
-        assert_eq!(maven_file.dependencies[6].scope.clone().unwrap(), MavenDependencyScope::Test);
-        assert_eq!(maven_file.dependencies[6].version.clone().unwrap(), "${wiremock.version}");
+        assert_eq!(
+            maven_file.dependencies[6].scope.clone().unwrap(),
+            MavenDependencyScope::Test
+        );
+        assert_eq!(
+            maven_file.dependencies[6].version.clone().unwrap(),
+            "${wiremock.version}"
+        );
 
         assert_eq!(maven_file.dependency_management.len(), 1);
-        assert_eq!(maven_file.dependency_management[0].artifact_id, "${quarkus.platform.artifact-id}");
-        assert_eq!(maven_file.dependency_management[0].scope.clone().unwrap(), MavenDependencyScope::Import);
-        assert_eq!(maven_file.dependency_management[0].group_id, "${quarkus.platform.group-id}");
-        assert_eq!(maven_file.dependency_management[0].clone().version.unwrap().as_str(), "${quarkus.platform.version}");
-        assert_eq!(maven_file.dependency_management[0].clone().r#type.unwrap(), MavenDependencyType::Pom);
+        assert_eq!(
+            maven_file.dependency_management[0].artifact_id,
+            "${quarkus.platform.artifact-id}"
+        );
+        assert_eq!(
+            maven_file.dependency_management[0].scope.clone().unwrap(),
+            MavenDependencyScope::Import
+        );
+        assert_eq!(
+            maven_file.dependency_management[0].group_id,
+            "${quarkus.platform.group-id}"
+        );
+        assert_eq!(
+            maven_file.dependency_management[0]
+                .clone()
+                .version
+                .unwrap()
+                .as_str(),
+            "${quarkus.platform.version}"
+        );
+        assert_eq!(
+            maven_file.dependency_management[0].clone().r#type.unwrap(),
+            MavenDependencyType::Pom
+        );
     }
-
 
     #[test]
     fn test_parse_pom_with_dependency_management() {
@@ -424,7 +470,10 @@ mod tests {
         assert_eq!(maven_file.dependency_management.len(), 11);
         assert_eq!(maven_file.properties.len(), 6);
 
-        assert_eq!(maven_file.dependencies[0].group_id, "com.google.code.findbugs");
+        assert_eq!(
+            maven_file.dependencies[0].group_id,
+            "com.google.code.findbugs"
+        );
         assert_eq!(maven_file.dependencies[0].artifact_id, "jsr305");
         assert!(maven_file.dependencies[0].r#type.is_none());
         assert!(maven_file.dependencies[0].scope.is_none());
@@ -433,25 +482,57 @@ mod tests {
         assert_eq!(maven_file.dependencies[1].group_id, "org.immutables");
         assert_eq!(maven_file.dependencies[1].artifact_id, "value-annotations");
         assert!(maven_file.dependencies[1].r#type.is_none());
-        assert_eq!(maven_file.dependencies[1].clone().scope.unwrap(), MavenDependencyScope::Provided);
+        assert_eq!(
+            maven_file.dependencies[1].clone().scope.unwrap(),
+            MavenDependencyScope::Provided
+        );
         assert!(maven_file.dependencies[1].version.is_none());
 
         assert_eq!(maven_file.dependencies[2].group_id, "org.junit.jupiter");
         assert_eq!(maven_file.dependencies[2].artifact_id, "junit-jupiter-api");
         assert!(maven_file.dependencies[2].r#type.is_none());
-        assert_eq!(maven_file.dependencies[2].clone().scope.unwrap(), MavenDependencyScope::Test);
+        assert_eq!(
+            maven_file.dependencies[2].clone().scope.unwrap(),
+            MavenDependencyScope::Test
+        );
         assert!(maven_file.dependencies[2].version.is_none());
 
-        assert_eq!(maven_file.dependency_management[0].group_id, "com.typesafe.akka");
-        assert_eq!(maven_file.dependency_management[0].artifact_id, "akka-actor_${akka-scala.version}");
+        assert_eq!(
+            maven_file.dependency_management[0].group_id,
+            "com.typesafe.akka"
+        );
+        assert_eq!(
+            maven_file.dependency_management[0].artifact_id,
+            "akka-actor_${akka-scala.version}"
+        );
         assert!(maven_file.dependency_management[0].r#type.is_none());
         assert!(maven_file.dependency_management[0].scope.is_none());
-        assert_eq!(maven_file.dependency_management[0].version.clone().unwrap().as_str(), "${akka.version}");
+        assert_eq!(
+            maven_file.dependency_management[0]
+                .version
+                .clone()
+                .unwrap()
+                .as_str(),
+            "${akka.version}"
+        );
 
-        assert_eq!(maven_file.dependency_management[1].group_id, "com.typesafe.akka");
-        assert_eq!(maven_file.dependency_management[1].artifact_id, "akka-slf4j_${akka-scala.version}");
+        assert_eq!(
+            maven_file.dependency_management[1].group_id,
+            "com.typesafe.akka"
+        );
+        assert_eq!(
+            maven_file.dependency_management[1].artifact_id,
+            "akka-slf4j_${akka-scala.version}"
+        );
         assert!(maven_file.dependency_management[1].r#type.is_none());
         assert!(maven_file.dependency_management[1].scope.is_none());
-        assert_eq!(maven_file.dependency_management[1].version.clone().unwrap().as_str(), "${akka.version}");
+        assert_eq!(
+            maven_file.dependency_management[1]
+                .version
+                .clone()
+                .unwrap()
+                .as_str(),
+            "${akka.version}"
+        );
     }
 }

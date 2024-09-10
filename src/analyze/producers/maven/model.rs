@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum MavenDependencyType {
-    Pom
+    Pom,
 }
 
 impl FromStr for MavenDependencyType {

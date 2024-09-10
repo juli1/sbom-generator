@@ -22,7 +22,6 @@ pub fn generate_sbom(
                 component_builder.purl(format!("pkg:maven/{}/@{}", d.name, &v).to_string());
             }
 
-
             component_builder.build().unwrap()
         })
         .collect();

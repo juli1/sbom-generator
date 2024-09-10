@@ -169,29 +169,42 @@ pub struct MavenProducerContext {
     pub files_information: HashMap<String, HashMap<String, Dependency>>,
 }
 
+impl Default for MavenProducerContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MavenProducerContext {
     pub fn new() -> Self {
         let xml_language = get_tree_sitter_xml();
 
         MavenProducerContext {
-            query_project_version: tree_sitter::Query::new(&xml_language, TREE_SITTER_PROJECT_VERSION)
-                .expect("got query variables"),
+            query_project_version: tree_sitter::Query::new(
+                &xml_language,
+                TREE_SITTER_PROJECT_VERSION,
+            )
+            .expect("got query variables"),
             query_dependencies: tree_sitter::Query::new(
                 &xml_language,
                 TREE_SITTER_QUERY_DEPENDENCIES,
-            ).expect("got query dependencies"),
+            )
+            .expect("got query dependencies"),
             query_dependency_management: tree_sitter::Query::new(
                 &xml_language,
                 TREE_SITTER_QUERY_DEPENDENCY_MANAGEMENT,
-            ).expect("got query dependency management"),
+            )
+            .expect("got query dependency management"),
             query_project_properties: tree_sitter::Query::new(
                 &xml_language,
                 TREE_SITTER_PROJECT_PROPERTIES,
-            ).expect("got query project properties"),
+            )
+            .expect("got query project properties"),
             query_parent_information: tree_sitter::Query::new(
                 &xml_language,
                 TREE_SITTER_PARENT_INFORMATION,
-            ).expect("got query parent info"),
+            )
+            .expect("got query parent info"),
             language: xml_language,
             files_information: HashMap::new(),
         }

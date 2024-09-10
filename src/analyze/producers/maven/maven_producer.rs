@@ -4,10 +4,8 @@ use crate::analyze::producers::producer::{SbomProducer, SbomProducerConfiguratio
 use crate::model::dependency::Dependency;
 use derive_builder::Builder;
 
-
 #[derive(Clone, Builder)]
 pub struct MavenProducer {}
-
 
 impl MavenProducer {}
 
@@ -30,7 +28,6 @@ impl SbomProducer for MavenProducer {
                 println!("paths: {}", p.to_str().unwrap_or(""))
             }
         }
-
 
         anyhow::Ok(result)
     }
