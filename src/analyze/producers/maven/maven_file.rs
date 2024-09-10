@@ -1,7 +1,6 @@
 use crate::analyze::producers::maven::constants::{ARTIFACT_ID, GROUP_ID, SCOPE, TYPE, VERSION};
 use crate::analyze::producers::maven::context::MavenProducerContext;
 use crate::analyze::producers::maven::model::{MavenDependencyScope, MavenDependencyType};
-use crate::analyze::producers::producer::SbomProducer;
 use crate::model::dependency::DependencyLocation;
 use crate::model::location::Location;
 use crate::model::position::get_position_in_string;
@@ -24,11 +23,13 @@ pub struct MavenDependency {
     #[builder(default = "None")]
     scope: Option<MavenDependencyScope>,
     #[builder(default = "None")]
+    #[allow(dead_code)]
     location: Option<DependencyLocation>,
 }
 
 #[derive(Clone, Builder, Default)]
 pub struct MavenFile {
+    #[allow(dead_code)]
     path: PathBuf,
     properties: HashMap<String, String>,
     dependency_management: Vec<MavenDependency>,
@@ -44,9 +45,6 @@ fn get_dependencies_from_dependency_maanagement(
 ) -> anyhow::Result<Vec<MavenDependency>> {
     let mut cursor = tree_sitter::QueryCursor::new();
     let mut dependencies: Vec<MavenDependency> = vec![];
-
-
-    cursor = tree_sitter::QueryCursor::new();
 
     let matches = cursor.matches(
         &context.query_dependency_management,
@@ -72,7 +70,6 @@ fn get_dependencies_from_dependency_maanagement(
 
         // the @element query
         let element_block = m.captures[0].node;
-        let element = content[element_block.start_byte()..element_block.end_byte()].to_string();
 
         let block_position_opt = Some(Location {
             file: path_string.clone(),
@@ -165,12 +162,8 @@ fn get_dependencies(
     content: &str,
     context: &MavenProducerContext,
 ) -> anyhow::Result<Vec<MavenDependency>> {
-    let variables = get_variables(tree, content, context);
     let mut cursor = tree_sitter::QueryCursor::new();
     let mut dependencies: Vec<MavenDependency> = vec![];
-
-
-    cursor = tree_sitter::QueryCursor::new();
 
     let matches = cursor.matches(
         &context.query_dependencies,
@@ -195,7 +188,6 @@ fn get_dependencies(
 
         // the @element query
         let element_block = m.captures[0].node;
-        let element = content[element_block.start_byte()..element_block.end_byte()].to_string();
 
         let block_position_opt = Some(Location {
             file: path_string.clone(),
@@ -417,7 +409,7 @@ mod tests {
         assert_eq!(maven_file.dependency_management[0].scope.clone().unwrap(), MavenDependencyScope::Import);
         assert_eq!(maven_file.dependency_management[0].group_id, "${quarkus.platform.group-id}");
         assert_eq!(maven_file.dependency_management[0].clone().version.unwrap().as_str(), "${quarkus.platform.version}");
-        assert_eq!(maven_file.dependency_management[0].clone().r#type.unwrap(), MavenDependencyType::POM);
+        assert_eq!(maven_file.dependency_management[0].clone().r#type.unwrap(), MavenDependencyType::Pom);
     }
 
 

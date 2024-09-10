@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use crate::analyze::producers::maven::context::MavenProducerContext;
 use crate::analyze::producers::producer::{SbomProducer, SbomProducerConfiguration};
 use crate::model::dependency::Dependency;
 use derive_builder::Builder;
@@ -25,14 +24,12 @@ impl SbomProducer for MavenProducer {
         paths: &[PathBuf],
         configuration: &SbomProducerConfiguration,
     ) -> anyhow::Result<Vec<Dependency>> {
-        let mut result = vec![];
+        let result = vec![];
         if configuration.use_debug {
             for p in paths.iter() {
                 println!("paths: {}", p.to_str().unwrap_or(""))
             }
         }
-
-        let mut context = MavenProducerContext::new();
 
 
         anyhow::Ok(result)

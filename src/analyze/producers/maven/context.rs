@@ -157,12 +157,15 @@ const TREE_SITTER_QUERY_DEPENDENCIES: &str = r###"
 /// queries but also all the files that were parsed. This way, if we need to resolve
 /// variables post-processing, we can use them using this structure.
 pub struct MavenProducerContext {
+    #[allow(dead_code)]
     pub query_project_version: tree_sitter::Query,
     pub query_project_properties: tree_sitter::Query,
+    #[allow(dead_code)]
     pub query_parent_information: tree_sitter::Query,
     pub query_dependencies: tree_sitter::Query,
     pub query_dependency_management: tree_sitter::Query,
     pub language: tree_sitter::Language,
+    #[allow(dead_code)]
     pub files_information: HashMap<String, HashMap<String, Dependency>>,
 }
 
