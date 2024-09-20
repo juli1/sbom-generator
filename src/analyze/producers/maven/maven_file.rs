@@ -1,7 +1,7 @@
 use crate::analyze::producers::maven::constants::{ARTIFACT_ID, GROUP_ID, SCOPE, TYPE, VERSION};
 use crate::analyze::producers::maven::context::MavenProducerContext;
 use crate::analyze::producers::maven::model::{MavenDependencyScope, MavenDependencyType};
-use crate::model::dependency::DependencyLocation;
+use crate::model::dependency::{Dependency, DependencyBuilder, DependencyLocation, DependencyType};
 use crate::model::location::Location;
 use crate::model::position::get_position_in_string;
 use crate::utils::tree_sitter::tree::get_tree;
@@ -27,6 +27,19 @@ pub struct MavenDependency {
     pub location: Option<DependencyLocation>,
 }
 
+impl From<&MavenDependency> for Dependency {
+    fn from(value: &MavenDependency) -> Self {
+        DependencyBuilder::default()
+            .name(format!("{}#{}", value.group_id, value.artifact_id))
+            .version(value.version.clone())
+            .location(value.location.clone())
+            .r#type(DependencyType::Library)
+            .purl("bla".to_string())
+            .build()
+            .unwrap()
+    }
+}
+
 #[derive(Clone, Builder, Default)]
 pub struct MavenFile {
     pub path: PathBuf,
@@ -35,7 +48,7 @@ pub struct MavenFile {
     pub dependencies: Vec<MavenDependency>,
 }
 
-fn get_dependencies_from_dependency_maanagement(
+fn get_dependencies_from_dependency_management(
     tree: &tree_sitter::Tree,
     path: &Path,
     content: &str,
@@ -310,7 +323,7 @@ impl MavenFile {
             if let Some(t) = get_tree(content.as_str(), &context.language) {
                 let variables = get_variables(&t, content.as_str(), context);
                 let dependencies = get_dependencies(&t, path, content.as_str(), context);
-                let dependency_management = get_dependencies_from_dependency_maanagement(
+                let dependency_management = get_dependencies_from_dependency_management(
                     &t,
                     path,
                     content.as_str(),

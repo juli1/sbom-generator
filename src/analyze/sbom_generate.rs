@@ -29,6 +29,7 @@ pub fn analyze(configuration: &Configuration) -> anyhow::Result<()> {
             .filter(|f| sbom_producer.use_file(f, &producer_configuration))
             .map(|v| (*v).clone())
             .collect::<Vec<PathBuf>>();
+
         let dependencies_found =
             sbom_producer.find_dependencies(producer_files.as_slice(), &producer_configuration);
 

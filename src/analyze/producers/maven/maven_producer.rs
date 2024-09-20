@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use crate::analyze::producers::maven::context::MavenProducerContext;
+use crate::analyze::producers::maven::maven_file::MavenFile;
 use crate::analyze::producers::producer::{SbomProducer, SbomProducerConfiguration};
 use crate::model::dependency::Dependency;
 use derive_builder::Builder;
@@ -22,10 +24,16 @@ impl SbomProducer for MavenProducer {
         paths: &[PathBuf],
         configuration: &SbomProducerConfiguration,
     ) -> anyhow::Result<Vec<Dependency>> {
-        let result = vec![];
+        let mut result = vec![];
+        let context = MavenProducerContext::new();
         if configuration.use_debug {
             for p in paths.iter() {
-                println!("paths: {}", p.to_str().unwrap_or(""))
+                println!("paths: {}", p.to_str().unwrap_or(""));
+                let maven_file = MavenFile::new(p, &context).expect("maven file is parsed");
+                let deps: Vec<Dependency> =
+                    maven_file.dependencies.iter().map(|d| d.into()).collect();
+
+                result.extend(deps)
             }
         }
 
