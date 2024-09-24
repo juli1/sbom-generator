@@ -1,6 +1,7 @@
 use crate::model::dependency::Dependency;
 use crate::utils::tree_sitter::language::get_tree_sitter_xml;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 const TREE_SITTER_PARENT_INFORMATION: &str = r###"
 (element
@@ -157,6 +158,7 @@ const TREE_SITTER_QUERY_DEPENDENCIES: &str = r###"
 /// queries but also all the files that were parsed. This way, if we need to resolve
 /// variables post-processing, we can use them using this structure.
 pub struct MavenProducerContext {
+    pub base_path: PathBuf,
     #[allow(dead_code)]
     pub query_project_version: tree_sitter::Query,
     pub query_project_properties: tree_sitter::Query,
@@ -171,15 +173,16 @@ pub struct MavenProducerContext {
 
 impl Default for MavenProducerContext {
     fn default() -> Self {
-        Self::new()
+        Self::new(PathBuf::default())
     }
 }
 
 impl MavenProducerContext {
-    pub fn new() -> Self {
+    pub fn new(bp: PathBuf) -> Self {
         let xml_language = get_tree_sitter_xml();
 
         MavenProducerContext {
+            base_path: bp,
             query_project_version: tree_sitter::Query::new(
                 &xml_language,
                 TREE_SITTER_PROJECT_VERSION,

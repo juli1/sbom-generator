@@ -19,6 +19,7 @@ pub fn analyze(configuration: &Configuration) -> anyhow::Result<()> {
 
     let all_files = get_files(configuration.directory.as_str()).expect("cannot read directory");
     let producer_configuration = SbomProducerConfiguration {
+        base_path: PathBuf::from(configuration.directory.clone()),
         use_debug: configuration.use_debug,
     };
 

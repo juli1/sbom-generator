@@ -4,6 +4,7 @@ use crate::model::dependency::Dependency;
 
 pub struct SbomProducerConfiguration {
     pub use_debug: bool,
+    pub base_path: PathBuf,
 }
 
 /// Generic trait for SBOM producer

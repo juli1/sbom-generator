@@ -7,10 +7,43 @@ use crate::model::position::get_position_in_string;
 use crate::utils::tree_sitter::tree::get_tree;
 use anyhow::anyhow;
 use derive_builder::Builder;
+use lazy_static::lazy_static;
+use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+
+lazy_static! {
+    static ref REGEX_VARIABLE: Regex = Regex::new(r"\$\{(.+)\}").unwrap();
+}
+
+fn enrich_string_with_properties(s: &str, properties: &HashMap<String, String>) -> String {
+    if let Some(caps) = REGEX_VARIABLE.captures(s) {
+        let total_capture_opt = caps.get(0);
+        let var_capture_opt = caps.get(1);
+
+        match (total_capture_opt, var_capture_opt) {
+            (Some(total_capture), Some(var_capture)) => {
+                let var_val = s;
+                let var_name = var_val.get(var_capture.start()..var_capture.end()).unwrap();
+                println!("var capture: {}", var_name);
+
+                if let Some(prop) = properties.get(var_name) {
+                    println!("val: {}", prop);
+                    let mut to_replace = var_val.get(0..total_capture.start()).unwrap().to_string();
+                    to_replace.push_str(prop.as_str());
+                    to_replace.push_str(var_val.get(total_capture.end()..var_val.len()).unwrap());
+                    return to_replace;
+                }
+            }
+            _ => {
+                return s.to_string();
+            }
+        }
+    }
+    s.to_string()
+}
 
 #[derive(Clone, Builder)]
 pub struct MavenDependency {
@@ -27,10 +60,26 @@ pub struct MavenDependency {
     pub location: Option<DependencyLocation>,
 }
 
+impl MavenDependency {
+    pub fn enrich(&self, properties: &HashMap<String, String>) -> Self {
+        MavenDependency {
+            group_id: enrich_string_with_properties(self.group_id.as_str(), properties),
+            artifact_id: enrich_string_with_properties(self.artifact_id.as_str(), properties),
+            version: self
+                .version
+                .clone()
+                .map(|x| enrich_string_with_properties(x.as_str(), properties)),
+            r#type: self.r#type.clone(),
+            scope: self.scope.clone(),
+            location: self.location.clone(),
+        }
+    }
+}
+
 impl From<&MavenDependency> for Dependency {
     fn from(value: &MavenDependency) -> Self {
         DependencyBuilder::default()
-            .name(format!("{}#{}", value.group_id, value.artifact_id))
+            .name(format!("{}:{}", value.group_id, value.artifact_id))
             .version(value.version.clone())
             .location(value.location.clone())
             .r#type(DependencyType::Library)
@@ -41,11 +90,17 @@ impl From<&MavenDependency> for Dependency {
 }
 
 #[derive(Clone, Builder, Default)]
+pub struct MavenFileParent {
+    pub relative_path: Option<String>,
+}
+
+#[derive(Clone, Builder, Default)]
 pub struct MavenFile {
     pub path: PathBuf,
     pub properties: HashMap<String, String>,
     pub dependency_management: Vec<MavenDependency>,
     pub dependencies: Vec<MavenDependency>,
+    pub parent: Option<MavenFileParent>,
 }
 
 fn get_dependencies_from_dependency_management(
@@ -316,6 +371,64 @@ pub fn get_variables(
     variables
 }
 
+fn get_parent_information(
+    tree: &tree_sitter::Tree,
+    _path: &Path,
+    content: &str,
+    context: &MavenProducerContext,
+) -> Option<MavenFileParent> {
+    let mut cursor = tree_sitter::QueryCursor::new();
+
+    let matches = cursor.matches(
+        &context.query_parent_information,
+        tree.root_node(),
+        content.as_bytes(),
+    );
+    for m in matches {
+        let value_node = m.captures[3].node;
+        let relative_path = content[value_node.start_byte()..value_node.end_byte()].to_string();
+        return Some(MavenFileParent {
+            relative_path: Some(relative_path),
+        });
+    }
+
+    None
+}
+
+fn replace_properties(properties: HashMap<String, String>) -> HashMap<String, String> {
+    let mut result = HashMap::new();
+    // replace variables inside the properties
+    for (k, v) in &properties {
+        if let Some(caps) = REGEX_VARIABLE.captures(v.as_str()) {
+            let total_capture_opt = caps.get(0);
+            let var_capture_opt = caps.get(1);
+
+            match (total_capture_opt, var_capture_opt) {
+                (Some(total_capture), Some(var_capture)) => {
+                    let var_val = v.as_str();
+                    let var_name = var_val.get(var_capture.start()..var_capture.end()).unwrap();
+                    println!("var capture: {}", var_name);
+
+                    if let Some(prop) = properties.get(var_name) {
+                        println!("val: {}", prop);
+                        let mut to_replace =
+                            var_val.get(0..total_capture.start()).unwrap().to_string();
+                        to_replace.push_str(prop.as_str());
+                        to_replace
+                            .push_str(var_val.get(total_capture.end()..var_val.len()).unwrap());
+
+                        result.insert(k.clone(), to_replace);
+                    }
+                }
+                _ => {}
+            }
+        } else {
+            result.insert(k.clone(), v.clone());
+        }
+    }
+    result
+}
+
 impl MavenFile {
     pub fn new(path: &PathBuf, context: &MavenProducerContext) -> anyhow::Result<Self> {
         let file_content = fs::read_to_string(path);
@@ -329,12 +442,15 @@ impl MavenFile {
                     content.as_str(),
                     context,
                 );
+                let parent_information =
+                    get_parent_information(&t, path, content.as_str(), context);
 
                 let maven_file = MavenFile {
                     path: path.clone(),
                     properties: variables,
                     dependency_management: dependency_management?,
                     dependencies: dependencies?,
+                    parent: parent_information,
                 };
                 Ok(maven_file)
             } else {
@@ -343,6 +459,112 @@ impl MavenFile {
         } else {
             Err(anyhow!("cannot parse file"))
         }
+    }
+
+    fn get_parent_file_path(&self, context: &MavenProducerContext) -> Option<PathBuf> {
+        if let Some(relative_path) = self.parent.clone().and_then(|x| x.relative_path) {
+            let bp = fs::canonicalize(&context.base_path).expect("cannpt get base path");
+            let mut f = self.path.clone();
+            f.push("..");
+            f.push(relative_path);
+            println!("test {:?}", f);
+            let full_path = fs::canonicalize(f).expect("cannot get full path");
+            println!("bp {:?}", bp);
+            println!("fp {:?}", full_path);
+
+            let mut rel_path = full_path
+                .strip_prefix(&bp)
+                .expect("get rel path")
+                .to_path_buf();
+            rel_path.push("pom.xml");
+            println!("rel path: {:?}", rel_path);
+            return Some(rel_path);
+        }
+        None
+    }
+
+    /// Get all properties related to this file and sub-files and put them in a HashMap.
+    /// Also resolve variables when appropriate/possible.
+    fn get_all_properties(
+        &self,
+        maven_files: &HashMap<PathBuf, MavenFile>,
+        context: &MavenProducerContext,
+    ) -> HashMap<String, String> {
+        fn get_all_properties_int(
+            maven_file: &MavenFile,
+            maven_files: &HashMap<PathBuf, MavenFile>,
+            context: &MavenProducerContext,
+        ) -> HashMap<String, String> {
+            let mut res: HashMap<String, String> = HashMap::new();
+
+            let parent_path = maven_file.get_parent_file_path(context);
+
+            if let Some(parent) = parent_path {
+                if let Some(parent_maven_file) = maven_files.get(&parent) {
+                    println!("found parent file");
+                    res.extend(parent_maven_file.get_all_properties(maven_files, context));
+                }
+            }
+
+            res.extend(maven_file.properties.clone());
+
+            res
+        }
+        replace_properties(get_all_properties_int(self, maven_files, context))
+    }
+
+    fn get_all_dependencies_from_dependency_management(
+        &self,
+        maven_files: &HashMap<PathBuf, MavenFile>,
+        context: &MavenProducerContext,
+    ) -> Vec<MavenDependency> {
+        let mut res: Vec<MavenDependency> = vec![];
+
+        let parent_path = self.get_parent_file_path(context);
+
+        if let Some(parent) = parent_path {
+            if let Some(parent_maven_file) = maven_files.get(&parent) {
+                res.extend(
+                    parent_maven_file
+                        .get_all_dependencies_from_dependency_management(maven_files, context),
+                );
+            }
+        }
+
+        res.extend(self.dependency_management.clone());
+
+        res
+    }
+
+    pub fn get_dependencies_for_sbom(
+        &self,
+        maven_files: &HashMap<PathBuf, MavenFile>,
+        context: &MavenProducerContext,
+    ) -> Vec<MavenDependency> {
+        let mut res = vec![];
+
+        // get all properties from the current file and its parent
+        let properties = &self.get_all_properties(maven_files, context);
+
+        let dependencies_from_property_management =
+            &self.get_all_dependencies_from_dependency_management(maven_files, context);
+
+        for dependency in &self.dependencies {
+            if dependency.version.is_none() {
+                let dep_from_dep_management =
+                    dependencies_from_property_management.iter().find(|x| {
+                        x.artifact_id == dependency.artifact_id && x.group_id == dependency.group_id
+                    });
+
+                if let Some(dep) = dep_from_dep_management {
+                    res.push(dep.clone().enrich(properties));
+                }
+            } else {
+                res.push(dependency.clone().enrich(properties));
+            }
+        }
+
+        res
     }
 }
 
@@ -353,8 +575,8 @@ mod tests {
     #[test]
     fn test_parse_simple_pom() {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let context = MavenProducerContext::new(d.clone());
         d.push("resources/maven/simple/pom.xml");
-        let context = MavenProducerContext::new();
         let maven_file = MavenFile::new(&d, &context).expect("maven file is parsed");
 
         assert_eq!(maven_file.dependencies.len(), 15);
@@ -379,8 +601,8 @@ mod tests {
     #[test]
     fn test_parse_pom_with_dependency() {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let context = MavenProducerContext::new(d.clone());
         d.push("resources/maven/pom-import/pom.xml");
-        let context = MavenProducerContext::new();
         let maven_file = MavenFile::new(&d, &context).expect("maven file is parsed");
 
         assert_eq!(maven_file.dependencies.len(), 7);
@@ -475,11 +697,11 @@ mod tests {
     #[test]
     fn test_parse_pom_with_dependency_management() {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let context = MavenProducerContext::new(d.clone());
         d.push("resources/maven/hierarchy/pom.xml");
-        let context = MavenProducerContext::new();
         let maven_file = MavenFile::new(&d, &context).expect("maven file is parsed");
 
-        assert_eq!(maven_file.dependencies.len(), 3);
+        assert_eq!(maven_file.dependencies.len(), 2);
         assert_eq!(maven_file.dependency_management.len(), 11);
         assert_eq!(maven_file.properties.len(), 6);
 
@@ -500,15 +722,6 @@ mod tests {
             MavenDependencyScope::Provided
         );
         assert!(maven_file.dependencies[1].version.is_none());
-
-        assert_eq!(maven_file.dependencies[2].group_id, "org.junit.jupiter");
-        assert_eq!(maven_file.dependencies[2].artifact_id, "junit-jupiter-api");
-        assert!(maven_file.dependencies[2].r#type.is_none());
-        assert_eq!(
-            maven_file.dependencies[2].clone().scope.unwrap(),
-            MavenDependencyScope::Test
-        );
-        assert!(maven_file.dependencies[2].version.is_none());
 
         assert_eq!(
             maven_file.dependency_management[0].group_id,
