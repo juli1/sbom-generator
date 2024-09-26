@@ -1,0 +1,18 @@
+on: push
+
+name: Comparison with other SBOM tools
+jobs:
+  test-maven:
+    runs-on: ubuntu-latest
+    name: Datadog SBOM Generation and Upload
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Install Stable + Rustfmt + Clippy
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    - name: test on hierarchical example
+      run: |
+        cargo run  -- --directory resources/maven/hierarchy -o /tmp/output.sbom --debug
+        python misc/compare-sbom.py /tmp/output.sbom resources/maven/hierarchy/results/osv.json

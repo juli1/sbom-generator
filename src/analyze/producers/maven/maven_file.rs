@@ -379,12 +379,13 @@ fn get_parent_information(
 ) -> Option<MavenFileParent> {
     let mut cursor = tree_sitter::QueryCursor::new();
 
-    let matches = cursor.matches(
+    let mut matches = cursor.matches(
         &context.query_parent_information,
         tree.root_node(),
         content.as_bytes(),
     );
-    for m in matches {
+
+    if let Some(m) = matches.next() {
         let value_node = m.captures[3].node;
         let relative_path = content[value_node.start_byte()..value_node.end_byte()].to_string();
         return Some(MavenFileParent {
@@ -403,24 +404,19 @@ fn replace_properties(properties: HashMap<String, String>) -> HashMap<String, St
             let total_capture_opt = caps.get(0);
             let var_capture_opt = caps.get(1);
 
-            match (total_capture_opt, var_capture_opt) {
-                (Some(total_capture), Some(var_capture)) => {
-                    let var_val = v.as_str();
-                    let var_name = var_val.get(var_capture.start()..var_capture.end()).unwrap();
-                    println!("var capture: {}", var_name);
+            if let (Some(total_capture), Some(var_capture)) = (total_capture_opt, var_capture_opt) {
+                let var_val = v.as_str();
+                let var_name = var_val.get(var_capture.start()..var_capture.end()).unwrap();
+                println!("var capture: {}", var_name);
 
-                    if let Some(prop) = properties.get(var_name) {
-                        println!("val: {}", prop);
-                        let mut to_replace =
-                            var_val.get(0..total_capture.start()).unwrap().to_string();
-                        to_replace.push_str(prop.as_str());
-                        to_replace
-                            .push_str(var_val.get(total_capture.end()..var_val.len()).unwrap());
+                if let Some(prop) = properties.get(var_name) {
+                    println!("val: {}", prop);
+                    let mut to_replace = var_val.get(0..total_capture.start()).unwrap().to_string();
+                    to_replace.push_str(prop.as_str());
+                    to_replace.push_str(var_val.get(total_capture.end()..var_val.len()).unwrap());
 
-                        result.insert(k.clone(), to_replace);
-                    }
+                    result.insert(k.clone(), to_replace);
                 }
-                _ => {}
             }
         } else {
             result.insert(k.clone(), v.clone());
