@@ -4,7 +4,7 @@ name: Comparison with other SBOM tools
 jobs:
   test-maven:
     runs-on: ubuntu-latest
-    name: Datadog SBOM Generation and Upload
+    name: Run testsuite for Maven
     steps:
     - name: Checkout
       uses: actions/checkout@v4

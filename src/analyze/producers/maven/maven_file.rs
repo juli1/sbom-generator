@@ -459,9 +459,8 @@ impl MavenFile {
 
     fn get_parent_file_path(&self, context: &MavenProducerContext) -> Option<PathBuf> {
         if let Some(relative_path) = self.parent.clone().and_then(|x| x.relative_path) {
-            let bp = fs::canonicalize(&context.base_path).expect("cannpt get base path");
-            let mut f = self.path.clone();
-            f.push("..");
+            let bp = fs::canonicalize(&context.base_path).expect("cannot get base path");
+            let mut f = self.path.clone().parent().unwrap().to_path_buf();
             f.push(relative_path);
             println!("test {:?}", f);
             let full_path = fs::canonicalize(f).expect("cannot get full path");
