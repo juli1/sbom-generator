@@ -27,27 +27,30 @@ def load_components(path: str):
 first_file_components = load_components(first_file)
 second_file_components = load_components(second_file)
 
-failed = False
+errors = 0
 
 ## Let's find components common two both with different versions
 for name, version in first_file_components.items():
     if name in second_file_components and version != second_file_components[name]:
         print(f"Component {name} has different versions: {version} and {second_file_components[name]}")
-        failed = True
+        errors = errors + 1
 
 
 ## Let's find components in the first file absent from the second
 for name, version in first_file_components.items():
     if name not in second_file_components:
         print(f"Component {name} is in the first file ({first_file}) but not in the second ({second_file})")
-        failed = True
+        errors = errors + 1
 
 ## Let's find components in the second file absent from the first
 for name, version in second_file_components.items():
     if name not in first_file_components:
         print(f"Component {name} is in the second file ({second_file}) but not in the first ({first_file})")
-        failed = True
+        errors = errors + 1
 
-if failed:
+if errors > 0:
+    print(f"{errors} errors found")
     sys.exit(1)
+
+print("no error found")
 sys.exit(0)
