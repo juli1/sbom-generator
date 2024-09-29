@@ -12,15 +12,5 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
-    - name: test on hierarchical example
-      run: |
-        cargo run  -- --directory resources/maven/hierarchy -o /tmp/output.sbom --debug
-        python misc/compare-sbom.py /tmp/output.sbom resources/maven/hierarchy/results/osv.json
-    - name: test on simple example
-      run: |
-        cargo run  -- --directory resources/maven/simple -o /tmp/output.sbom --debug
-        python misc/compare-sbom.py /tmp/output.sbom resources/maven/simple/results/osv.json
-    - name: test on variables example
-      run: |
-        cargo run  -- --directory resources/maven/variables -o /tmp/output.sbom --debug
-        python misc/compare-sbom.py /tmp/output.sbom resources/maven/variables/results/osv.json
+    - name: run integration tests
+      run: ./misc/test.sh

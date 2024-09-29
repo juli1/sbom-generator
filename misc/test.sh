@@ -6,6 +6,7 @@ for ts in simple hierarchy; do
 
   if [ $? -ne 0 ]; then
     echo "TEST $ts FAILED"
+    exit 1
   else
     echo "TEST $ts SUCCEEDED"
   fi
