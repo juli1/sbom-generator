@@ -29,6 +29,7 @@ impl SbomProducer for MavenProducer {
         let mut maven_files: HashMap<PathBuf, MavenFile> = HashMap::new();
         let maven_context = MavenProducerContext::new(configuration.base_path.clone());
 
+        // First pass, we are getting the dependency files
         for p in paths.iter() {
             let relative_path = p.strip_prefix(&configuration.base_path)?.to_path_buf();
 
@@ -39,6 +40,7 @@ impl SbomProducer for MavenProducer {
             maven_files.insert(relative_path, maven_file);
         }
 
+        // Second pass, we are resolving variables and extracting dependencies
         for maven_file in maven_files.values() {
             let deps: Vec<Dependency> = maven_file
                 .get_dependencies_for_sbom(&maven_files, &maven_context)

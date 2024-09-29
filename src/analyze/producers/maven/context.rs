@@ -16,17 +16,17 @@ const TREE_SITTER_PARENT_INFORMATION: &str = r###"
          (content
             (element
                (STag
-                  (Name) @relativePath
+                  (Name) @key
                )
-               (content) @pathValue
+               (content) @value
+               (ETag)
             )
-
          )
       )
    )
    (#eq? @project "project")
    (#eq? @parent "parent")
-   (#eq? @relativePath "relativePath")
+   (#any-of? @key "relativePath")
 )
 "###;
 

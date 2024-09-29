@@ -92,6 +92,9 @@ impl From<&MavenDependency> for Dependency {
 #[derive(Clone, Builder, Default)]
 pub struct MavenFileParent {
     pub relative_path: Option<String>,
+    pub group_id: Option<String>,
+    pub artifact_id: Option<String>,
+    pub version: Option<String>,
 }
 
 #[derive(Clone, Builder, Default)]
@@ -371,6 +374,7 @@ pub fn get_variables(
     variables
 }
 
+#[warn(unused_assignments)]
 fn get_parent_information(
     tree: &tree_sitter::Tree,
     _path: &Path,
@@ -378,22 +382,44 @@ fn get_parent_information(
     context: &MavenProducerContext,
 ) -> Option<MavenFileParent> {
     let mut cursor = tree_sitter::QueryCursor::new();
+    let mut relative_path: Option<String> = None;
+    let mut group_id: Option<String> = None;
+    let mut artifact_id: Option<String> = None;
+    let mut version: Option<String> = None;
 
-    let mut matches = cursor.matches(
+    let matches = cursor.matches(
         &context.query_parent_information,
         tree.root_node(),
         content.as_bytes(),
     );
 
-    if let Some(m) = matches.next() {
+    for m in matches {
+        let key_node = m.captures[2].node;
         let value_node = m.captures[3].node;
-        let relative_path = content[value_node.start_byte()..value_node.end_byte()].to_string();
-        return Some(MavenFileParent {
-            relative_path: Some(relative_path),
-        });
+        let key_value = content[key_node.start_byte()..key_node.end_byte()].to_string();
+
+        let value_value = content[value_node.start_byte()..value_node.end_byte()].to_string();
+
+        if key_value == "relativePath" {
+            relative_path = Some(value_value.clone());
+        }
+        if key_value == "artifactId" {
+            artifact_id = Some(value_value.clone());
+        }
+        if key_value == "groupId" {
+            group_id = Some(value_value.clone());
+        }
+        if key_value == "version" {
+            version = Some(value_value.clone());
+        }
     }
 
-    None
+    relative_path.map(|rp| MavenFileParent {
+        relative_path: Some(rp),
+        group_id,
+        artifact_id,
+        version,
+    })
 }
 
 fn replace_properties(properties: HashMap<String, String>) -> HashMap<String, String> {
@@ -407,10 +433,8 @@ fn replace_properties(properties: HashMap<String, String>) -> HashMap<String, St
             if let (Some(total_capture), Some(var_capture)) = (total_capture_opt, var_capture_opt) {
                 let var_val = v.as_str();
                 let var_name = var_val.get(var_capture.start()..var_capture.end()).unwrap();
-                println!("var capture: {}", var_name);
 
                 if let Some(prop) = properties.get(var_name) {
-                    println!("val: {}", prop);
                     let mut to_replace = var_val.get(0..total_capture.start()).unwrap().to_string();
                     to_replace.push_str(prop.as_str());
                     to_replace.push_str(var_val.get(total_capture.end()..var_val.len()).unwrap());
@@ -462,10 +486,7 @@ impl MavenFile {
             let bp = fs::canonicalize(&context.base_path).expect("cannot get base path");
             let mut f = self.path.clone().parent().unwrap().to_path_buf();
             f.push(&relative_path);
-            println!("test {:?}", f);
             let full_path = fs::canonicalize(f).expect("cannot get full path");
-            println!("bp {:?}", bp);
-            println!("fp {:?}", full_path);
 
             let mut rel_path = full_path
                 .strip_prefix(&bp)
