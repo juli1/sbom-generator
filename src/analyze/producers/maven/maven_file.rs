@@ -461,7 +461,7 @@ impl MavenFile {
         if let Some(relative_path) = self.parent.clone().and_then(|x| x.relative_path) {
             let bp = fs::canonicalize(&context.base_path).expect("cannot get base path");
             let mut f = self.path.clone().parent().unwrap().to_path_buf();
-            f.push(relative_path);
+            f.push(&relative_path);
             println!("test {:?}", f);
             let full_path = fs::canonicalize(f).expect("cannot get full path");
             println!("bp {:?}", bp);
@@ -471,7 +471,10 @@ impl MavenFile {
                 .strip_prefix(&bp)
                 .expect("get rel path")
                 .to_path_buf();
-            rel_path.push("pom.xml");
+
+            if !relative_path.ends_with("pom.xml") {
+                rel_path.push("pom.xml");
+            }
             println!("rel path: {:?}", rel_path);
             return Some(rel_path);
         }
@@ -566,6 +569,60 @@ impl MavenFile {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_properties() {
+        let mut maven_files: HashMap<PathBuf, MavenFile> = HashMap::new();
+
+        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let context = MavenProducerContext::new(d.clone());
+        d.push("resources/maven/hierarchy/pom.xml");
+        let maven_file = MavenFile::new(&d, &context).expect("maven file is parsed");
+
+        assert_eq!(maven_file.properties.len(), 6);
+        assert_eq!(
+            maven_file.properties.get("project.version").unwrap(),
+            "1.0-SNAPSHOT"
+        );
+        assert_eq!(
+            maven_file.properties.get("slf4j.version").unwrap(),
+            "2.0.13"
+        );
+        assert_eq!(maven_file.properties.get("akka.version").unwrap(), "2.6.21");
+        assert_eq!(
+            maven_file.properties.get("immutables.version").unwrap(),
+            "2.8.8"
+        );
+        assert_eq!(
+            maven_file.properties.get("akka-scala.version").unwrap(),
+            "${scala.version}"
+        );
+        assert_eq!(maven_file.properties.get("scala.version").unwrap(), "2.12");
+
+        maven_files.insert(
+            PathBuf::from("resources/maven/hierarchy/pom.xml"),
+            maven_file,
+        );
+
+        // ensure that we can get the same properties from the sub-directory.
+
+        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let context = MavenProducerContext::new(d.clone());
+        d.push("resources/maven/hierarchy/subproject/pom.xml");
+        let subfile = MavenFile::new(&d, &context).expect("maven file is parsed");
+
+        let sub_properties = subfile.get_all_properties(&maven_files, &context);
+        assert_eq!(sub_properties.len(), 6);
+        assert_eq!(
+            sub_properties.get("project.version").unwrap(),
+            "1.0-SNAPSHOT"
+        );
+        assert_eq!(sub_properties.get("slf4j.version").unwrap(), "2.0.13");
+        assert_eq!(sub_properties.get("akka.version").unwrap(), "2.6.21");
+        assert_eq!(sub_properties.get("immutables.version").unwrap(), "2.8.8");
+        assert_eq!(sub_properties.get("akka-scala.version").unwrap(), "2.12");
+        assert_eq!(sub_properties.get("scala.version").unwrap(), "2.12");
+    }
 
     #[test]
     fn test_parse_simple_pom() {
