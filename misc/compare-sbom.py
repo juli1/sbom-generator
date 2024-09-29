@@ -32,7 +32,7 @@ errors = 0
 ## Let's find components common two both with different versions
 for name, version in first_file_components.items():
     if name in second_file_components and version != second_file_components[name]:
-        print(f"Component {name} has different versions: {version} and {second_file_components[name]}")
+        print(f"Component {name} has different versions: {version} (in {first_file}) and {second_file_components[name]} (in {second_file})")
         errors = errors + 1
 
 
@@ -48,8 +48,10 @@ for name, version in second_file_components.items():
         print(f"Component {name} is in the second file ({second_file}) but not in the first ({first_file})")
         errors = errors + 1
 
+max_components = max(len(first_file_components), len(second_file_components))
 if errors > 0:
-    print(f"{errors} errors found")
+    accuracy = ((max_components - errors)/max_components) * 100
+    print(f"{errors} errors found, tool accuracy {accuracy:.2f}")
     sys.exit(1)
 
 print("no error found")
