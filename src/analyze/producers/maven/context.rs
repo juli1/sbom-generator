@@ -4,33 +4,56 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 const TREE_SITTER_PARENT_INFORMATION: &str = r###"
-(element
-   (STag
-      (Name) @project
-   )
-   (content
-      (element
-         (STag
-            (Name) @parent
-         )
-         (content
-            (element
-               (STag
-                  (Name) @key
-               )
-               (content) @value
-               (ETag)
-            )
-         )
-      )
-   )
-   (#eq? @project "project")
-   (#eq? @parent "parent")
-   (#any-of? @key "relativePath")
+(document
+  root: (element
+	(STag
+	  (Name) @project
+	)
+	(content
+	  (element
+		(STag
+		  (Name) @parent
+		)
+		(content
+		  (element
+		  (STag
+			(Name) @key
+		  )
+		  (content) @value
+		  (ETag)
+		  )
+		)+
+	  )
+	)
+	(#eq? @project "project")
+	(#eq? @parent "parent")
+	(#any-of? @key "relativePath" "groupId" "artifactId" "version")
+  )
 )
 "###;
 
-const TREE_SITTER_PROJECT_VERSION: &str = r###"
+const TREE_SITTER_PROJECT_METADATA: &str = r###"
+(document
+  root: (element
+	(STag
+	  (Name) @project
+	)
+
+    (content
+      (element
+      (STag
+        (Name) @key
+      )
+      (content) @value
+      (ETag)
+      )
+    )+
+
+	(#eq? @project "project")
+	(#any-of? @key "groupId" "artifactId" "version")
+  )
+)
+
 (element
    (STag
       (Name) @project
@@ -160,7 +183,7 @@ const TREE_SITTER_QUERY_DEPENDENCIES: &str = r###"
 pub struct MavenProducerContext {
     pub base_path: PathBuf,
     #[allow(dead_code)]
-    pub query_project_version: tree_sitter::Query,
+    pub query_project_metadata: tree_sitter::Query,
     pub query_project_properties: tree_sitter::Query,
     #[allow(dead_code)]
     pub query_parent_information: tree_sitter::Query,
@@ -183,9 +206,9 @@ impl MavenProducerContext {
 
         MavenProducerContext {
             base_path: bp,
-            query_project_version: tree_sitter::Query::new(
+            query_project_metadata: tree_sitter::Query::new(
                 &xml_language,
-                TREE_SITTER_PROJECT_VERSION,
+                TREE_SITTER_PROJECT_METADATA,
             )
             .expect("got query variables"),
             query_dependencies: tree_sitter::Query::new(

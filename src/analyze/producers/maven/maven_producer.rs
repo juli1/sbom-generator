@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::analyze::producers::maven::context::MavenProducerContext;
-use crate::analyze::producers::maven::maven_file::MavenFile;
+use crate::analyze::producers::maven::maven_file::{MavenFile, MavenProjectInfo};
 use crate::analyze::producers::producer::{SbomProducer, SbomProducerConfiguration};
 use crate::model::dependency::Dependency;
 use derive_builder::Builder;
@@ -27,6 +27,7 @@ impl SbomProducer for MavenProducer {
     ) -> anyhow::Result<Vec<Dependency>> {
         let mut result = vec![];
         let mut maven_files: HashMap<PathBuf, MavenFile> = HashMap::new();
+        let mut maven_files_by_project_info: HashMap<MavenProjectInfo, MavenFile> = HashMap::new();
         let maven_context = MavenProducerContext::new(configuration.base_path.clone());
 
         // First pass, we are getting the dependency files
@@ -37,13 +38,18 @@ impl SbomProducer for MavenProducer {
                 println!("paths: {}", relative_path.to_str().unwrap_or(""));
             }
             let maven_file = MavenFile::new(p, &maven_context).expect("maven file is parsed");
+            maven_files_by_project_info.insert(maven_file.project_info.clone(), maven_file.clone());
             maven_files.insert(relative_path, maven_file);
         }
 
         // Second pass, we are resolving variables and extracting dependencies
         for maven_file in maven_files.values() {
             let deps: Vec<Dependency> = maven_file
-                .get_dependencies_for_sbom(&maven_files, &maven_context)
+                .get_dependencies_for_sbom(
+                    &maven_files,
+                    &maven_files_by_project_info,
+                    &maven_context,
+                )
                 .iter()
                 .map(|d| d.into())
                 .collect();

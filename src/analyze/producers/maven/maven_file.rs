@@ -45,7 +45,14 @@ fn enrich_string_with_properties(s: &str, properties: &HashMap<String, String>) 
     s.to_string()
 }
 
-#[derive(Clone, Builder)]
+#[derive(Default, Eq, Hash, Clone, Debug, Builder, PartialEq)]
+pub struct MavenProjectInfo {
+    pub group_id: Option<String>,
+    pub artifact_id: String,
+    pub version: Option<String>,
+}
+
+#[derive(Clone, Debug, Builder)]
 pub struct MavenDependency {
     pub group_id: String,
     pub artifact_id: String,
@@ -89,7 +96,7 @@ impl From<&MavenDependency> for Dependency {
     }
 }
 
-#[derive(Clone, Builder, Default)]
+#[derive(Clone, Debug, Builder, Default)]
 pub struct MavenFileParent {
     pub relative_path: Option<String>,
     pub group_id: Option<String>,
@@ -97,8 +104,9 @@ pub struct MavenFileParent {
     pub version: Option<String>,
 }
 
-#[derive(Clone, Builder, Default)]
+#[derive(Clone, Debug, Builder, Default)]
 pub struct MavenFile {
+    pub project_info: MavenProjectInfo,
     pub path: PathBuf,
     pub properties: HashMap<String, String>,
     pub dependency_management: Vec<MavenDependency>,
@@ -345,15 +353,20 @@ pub fn get_variables(
     // Get the project version is any
     let mut cursor = tree_sitter::QueryCursor::new();
     let matches = cursor.matches(
-        &maven_producer_context.query_project_version,
+        &maven_producer_context.query_project_metadata,
         tree.root_node(),
         file_content.as_bytes(),
     );
 
     for m in matches {
         let value_node = m.captures[2].node;
+        let key_node = m.captures[1].node;
+        let key = file_content[key_node.start_byte()..key_node.end_byte()].to_string();
         let value = file_content[value_node.start_byte()..value_node.end_byte()].to_string();
-        variables.insert("project.version".to_string(), value);
+
+        if key == "version" {
+            variables.insert("project.version".to_string(), value);
+        }
     }
 
     // Get the project properties
@@ -372,6 +385,47 @@ pub fn get_variables(
     }
 
     variables
+}
+
+pub fn get_project_info(
+    tree: &tree_sitter::Tree,
+    file_content: &str,
+    maven_producer_context: &MavenProducerContext,
+) -> Option<MavenProjectInfo> {
+    // Get the project version is any
+    let mut cursor = tree_sitter::QueryCursor::new();
+    let matches = cursor.matches(
+        &maven_producer_context.query_project_metadata,
+        tree.root_node(),
+        file_content.as_bytes(),
+    );
+
+    let mut version: Option<String> = None;
+    let mut artifact_id: Option<String> = None;
+    let mut group_id: Option<String> = None;
+
+    for m in matches {
+        let key_node = m.captures[1].node;
+        let value_node = m.captures[2].node;
+        let key = file_content[key_node.start_byte()..key_node.end_byte()].to_string();
+        let value = file_content[value_node.start_byte()..value_node.end_byte()].to_string();
+        if key == "version" {
+            version = Some(value.clone());
+        }
+
+        if key == "artifactId" {
+            artifact_id = Some(value.clone());
+        }
+
+        if key == "groupId" {
+            group_id = Some(value.clone());
+        }
+    }
+    artifact_id.map(|a| MavenProjectInfo {
+        version,
+        artifact_id: a,
+        group_id,
+    })
 }
 
 #[warn(unused_assignments)]
@@ -414,12 +468,27 @@ fn get_parent_information(
         }
     }
 
-    relative_path.map(|rp| MavenFileParent {
-        relative_path: Some(rp),
-        group_id,
-        artifact_id,
-        version,
-    })
+    match (relative_path, group_id, artifact_id, version) {
+        (Some(rp), None, None, None) => Some(MavenFileParent {
+            relative_path: Some(rp),
+            artifact_id: None,
+            group_id: None,
+            version: None,
+        }),
+        (Some(rp), Some(gi), Some(ai), Some(v)) => Some(MavenFileParent {
+            relative_path: Some(rp),
+            artifact_id: Some(ai),
+            group_id: Some(gi),
+            version: Some(v),
+        }),
+        (None, Some(gi), Some(ai), Some(v)) => Some(MavenFileParent {
+            relative_path: None,
+            artifact_id: Some(ai),
+            group_id: Some(gi),
+            version: Some(v),
+        }),
+        _ => None,
+    }
 }
 
 fn replace_properties(properties: HashMap<String, String>) -> HashMap<String, String> {
@@ -454,6 +523,12 @@ impl MavenFile {
         let file_content = fs::read_to_string(path);
         if let Ok(content) = file_content {
             if let Some(t) = get_tree(content.as_str(), &context.language) {
+                let project_info = get_project_info(&t, content.as_str(), context);
+
+                if project_info.is_none() {
+                    return Err(anyhow!("cannot get project info"));
+                }
+
                 let variables = get_variables(&t, content.as_str(), context);
                 let dependencies = get_dependencies(&t, path, content.as_str(), context);
                 let dependency_management = get_dependencies_from_dependency_management(
@@ -464,8 +539,9 @@ impl MavenFile {
                 );
                 let parent_information =
                     get_parent_information(&t, path, content.as_str(), context);
-
+                println!("parent={:?}", &parent_information);
                 let maven_file = MavenFile {
+                    project_info: project_info.unwrap(),
                     path: path.clone(),
                     properties: variables,
                     dependency_management: dependency_management?,
@@ -507,11 +583,13 @@ impl MavenFile {
     fn get_all_properties(
         &self,
         maven_files: &HashMap<PathBuf, MavenFile>,
+        maven_files_by_project_info: &HashMap<MavenProjectInfo, MavenFile>,
         context: &MavenProducerContext,
     ) -> HashMap<String, String> {
         fn get_all_properties_int(
             maven_file: &MavenFile,
             maven_files: &HashMap<PathBuf, MavenFile>,
+            maven_files_by_project_info: &HashMap<MavenProjectInfo, MavenFile>,
             context: &MavenProducerContext,
         ) -> HashMap<String, String> {
             let mut res: HashMap<String, String> = HashMap::new();
@@ -521,7 +599,30 @@ impl MavenFile {
             if let Some(parent) = parent_path {
                 if let Some(parent_maven_file) = maven_files.get(&parent) {
                     println!("found parent file");
-                    res.extend(parent_maven_file.get_all_properties(maven_files, context));
+                    res.extend(parent_maven_file.get_all_properties(
+                        maven_files,
+                        maven_files_by_project_info,
+                        context,
+                    ));
+                }
+            } else if let Some(p) = &maven_file.parent {
+                if let (Some(g), Some(a), Some(v)) =
+                    (p.clone().group_id, p.clone().artifact_id, p.clone().version)
+                {
+                    let key = MavenProjectInfo {
+                        artifact_id: a,
+                        group_id: Some(g),
+                        version: Some(v),
+                    };
+                    println!("key: {:?}", key);
+                    println!("keys: {:?}", maven_files_by_project_info.keys());
+                    if let Some(m) = maven_files_by_project_info.get(&key) {
+                        res.extend(m.get_all_properties(
+                            maven_files,
+                            maven_files_by_project_info,
+                            context,
+                        ));
+                    }
                 }
             }
 
@@ -529,7 +630,12 @@ impl MavenFile {
 
             res
         }
-        replace_properties(get_all_properties_int(self, maven_files, context))
+        replace_properties(get_all_properties_int(
+            self,
+            maven_files,
+            maven_files_by_project_info,
+            context,
+        ))
     }
 
     fn get_all_dependencies_from_dependency_management(
@@ -558,12 +664,14 @@ impl MavenFile {
     pub fn get_dependencies_for_sbom(
         &self,
         maven_files: &HashMap<PathBuf, MavenFile>,
+        maven_files_by_project_info: &HashMap<MavenProjectInfo, MavenFile>,
         context: &MavenProducerContext,
     ) -> Vec<MavenDependency> {
         let mut res = vec![];
 
         // get all properties from the current file and its parent
-        let properties = &self.get_all_properties(maven_files, context);
+        let properties =
+            &self.get_all_properties(maven_files, maven_files_by_project_info, context);
 
         let dependencies_from_property_management =
             &self.get_all_dependencies_from_dependency_management(maven_files, context);
@@ -594,6 +702,7 @@ mod tests {
     #[test]
     fn test_parse_properties() {
         let mut maven_files: HashMap<PathBuf, MavenFile> = HashMap::new();
+        let maven_files_by_project_info: HashMap<MavenProjectInfo, MavenFile> = HashMap::new();
 
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let context = MavenProducerContext::new(d.clone());
@@ -632,7 +741,8 @@ mod tests {
         d.push("resources/maven/hierarchy/subproject/pom.xml");
         let subfile = MavenFile::new(&d, &context).expect("maven file is parsed");
 
-        let sub_properties = subfile.get_all_properties(&maven_files, &context);
+        let sub_properties =
+            subfile.get_all_properties(&maven_files, &maven_files_by_project_info, &context);
         assert_eq!(sub_properties.len(), 6);
         assert_eq!(
             sub_properties.get("project.version").unwrap(),
