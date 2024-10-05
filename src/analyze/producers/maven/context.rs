@@ -1,4 +1,4 @@
-use crate::model::dependency::Dependency;
+use crate::analyze::producers::maven::maven_file::{MavenFile, MavenProjectInfo};
 use crate::utils::tree_sitter::language::get_tree_sitter_xml;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -190,8 +190,14 @@ pub struct MavenProducerContext {
     pub query_dependencies: tree_sitter::Query,
     pub query_dependency_management: tree_sitter::Query,
     pub language: tree_sitter::Language,
-    #[allow(dead_code)]
-    pub files_information: HashMap<String, HashMap<String, Dependency>>,
+    /// hold a copy of the maven file data indexed by path for easy retrieval and indexing
+    /// when looking for a parent.
+    maven_files_by_path: HashMap<PathBuf, MavenFile>,
+    /// hold a copy o maven file by project information. It's used if we do not have the
+    /// path information.
+    maven_files_by_project_info: HashMap<MavenProjectInfo, MavenFile>,
+    /// Copy of all maven files that have been found.
+    maven_files: Vec<MavenFile>,
 }
 
 impl Default for MavenProducerContext {
@@ -201,6 +207,35 @@ impl Default for MavenProducerContext {
 }
 
 impl MavenProducerContext {
+    pub fn add_maven_file(&mut self, maven_file: &MavenFile) {
+        let relative_path = &maven_file
+            .path
+            .strip_prefix(&self.base_path)
+            .expect("can get base path")
+            .to_path_buf();
+
+        self.maven_files_by_path
+            .insert(relative_path.clone(), maven_file.clone());
+        self.maven_files_by_project_info
+            .insert(maven_file.project_info.clone(), maven_file.clone());
+        self.maven_files.push(maven_file.clone());
+    }
+
+    pub fn get_maven_file_by_project_info(
+        &self,
+        project_info: &MavenProjectInfo,
+    ) -> Option<&MavenFile> {
+        self.maven_files_by_project_info.get(project_info)
+    }
+
+    pub fn get_maven_file_by_path(&self, path: &PathBuf) -> Option<&MavenFile> {
+        self.maven_files_by_path.get(path)
+    }
+
+    pub fn get_all_files(&self) -> &Vec<MavenFile> {
+        &self.maven_files
+    }
+
     pub fn new(bp: PathBuf) -> Self {
         let xml_language = get_tree_sitter_xml();
 
@@ -232,7 +267,9 @@ impl MavenProducerContext {
             )
             .expect("got query parent info"),
             language: xml_language,
-            files_information: HashMap::new(),
+            maven_files_by_path: HashMap::new(),
+            maven_files_by_project_info: HashMap::new(),
+            maven_files: vec![],
         }
     }
 }

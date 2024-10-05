@@ -580,16 +580,9 @@ impl MavenFile {
 
     /// Get all properties related to this file and sub-files and put them in a HashMap.
     /// Also resolve variables when appropriate/possible.
-    fn get_all_properties(
-        &self,
-        maven_files: &HashMap<PathBuf, MavenFile>,
-        maven_files_by_project_info: &HashMap<MavenProjectInfo, MavenFile>,
-        context: &MavenProducerContext,
-    ) -> HashMap<String, String> {
+    fn get_all_properties(&self, context: &MavenProducerContext) -> HashMap<String, String> {
         fn get_all_properties_int(
             maven_file: &MavenFile,
-            maven_files: &HashMap<PathBuf, MavenFile>,
-            maven_files_by_project_info: &HashMap<MavenProjectInfo, MavenFile>,
             context: &MavenProducerContext,
         ) -> HashMap<String, String> {
             let mut res: HashMap<String, String> = HashMap::new();
@@ -597,13 +590,9 @@ impl MavenFile {
             let parent_path = maven_file.get_parent_file_path(context);
 
             if let Some(parent) = parent_path {
-                if let Some(parent_maven_file) = maven_files.get(&parent) {
+                if let Some(parent_maven_file) = context.get_maven_file_by_path(&parent) {
                     println!("found parent file");
-                    res.extend(parent_maven_file.get_all_properties(
-                        maven_files,
-                        maven_files_by_project_info,
-                        context,
-                    ));
+                    res.extend(parent_maven_file.get_all_properties(context));
                 }
             } else if let Some(p) = &maven_file.parent {
                 if let (Some(g), Some(a), Some(v)) =
@@ -614,14 +603,9 @@ impl MavenFile {
                         group_id: Some(g),
                         version: Some(v),
                     };
-                    println!("key: {:?}", key);
-                    println!("keys: {:?}", maven_files_by_project_info.keys());
-                    if let Some(m) = maven_files_by_project_info.get(&key) {
-                        res.extend(m.get_all_properties(
-                            maven_files,
-                            maven_files_by_project_info,
-                            context,
-                        ));
+
+                    if let Some(m) = context.get_maven_file_by_project_info(&key) {
+                        res.extend(m.get_all_properties(context));
                     }
                 }
             }
@@ -630,17 +614,11 @@ impl MavenFile {
 
             res
         }
-        replace_properties(get_all_properties_int(
-            self,
-            maven_files,
-            maven_files_by_project_info,
-            context,
-        ))
+        replace_properties(get_all_properties_int(self, context))
     }
 
     fn get_all_dependencies_from_dependency_management(
         &self,
-        maven_files: &HashMap<PathBuf, MavenFile>,
         context: &MavenProducerContext,
     ) -> Vec<MavenDependency> {
         let mut res: Vec<MavenDependency> = vec![];
@@ -648,10 +626,9 @@ impl MavenFile {
         let parent_path = self.get_parent_file_path(context);
 
         if let Some(parent) = parent_path {
-            if let Some(parent_maven_file) = maven_files.get(&parent) {
+            if let Some(parent_maven_file) = context.get_maven_file_by_path(&parent) {
                 res.extend(
-                    parent_maven_file
-                        .get_all_dependencies_from_dependency_management(maven_files, context),
+                    parent_maven_file.get_all_dependencies_from_dependency_management(context),
                 );
             }
         }
@@ -663,18 +640,15 @@ impl MavenFile {
 
     pub fn get_dependencies_for_sbom(
         &self,
-        maven_files: &HashMap<PathBuf, MavenFile>,
-        maven_files_by_project_info: &HashMap<MavenProjectInfo, MavenFile>,
         context: &MavenProducerContext,
     ) -> Vec<MavenDependency> {
         let mut res = vec![];
 
         // get all properties from the current file and its parent
-        let properties =
-            &self.get_all_properties(maven_files, maven_files_by_project_info, context);
+        let properties = &self.get_all_properties(context);
 
         let dependencies_from_property_management =
-            &self.get_all_dependencies_from_dependency_management(maven_files, context);
+            &self.get_all_dependencies_from_dependency_management(context);
 
         for dependency in &self.dependencies {
             if dependency.version.is_none() {
@@ -701,12 +675,10 @@ mod tests {
 
     #[test]
     fn test_parse_properties() {
-        let mut maven_files: HashMap<PathBuf, MavenFile> = HashMap::new();
-        let maven_files_by_project_info: HashMap<MavenProjectInfo, MavenFile> = HashMap::new();
-
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let context = MavenProducerContext::new(d.clone());
-        d.push("resources/maven/hierarchy/pom.xml");
+        d.push("resources/maven/hierarchy/");
+        let mut context = MavenProducerContext::new(d.clone());
+        d.push("pom.xml");
         let maven_file = MavenFile::new(&d, &context).expect("maven file is parsed");
 
         assert_eq!(maven_file.properties.len(), 6);
@@ -729,20 +701,15 @@ mod tests {
         );
         assert_eq!(maven_file.properties.get("scala.version").unwrap(), "2.12");
 
-        maven_files.insert(
-            PathBuf::from("resources/maven/hierarchy/pom.xml"),
-            maven_file,
-        );
+        context.add_maven_file(&maven_file);
 
         // ensure that we can get the same properties from the sub-directory.
-
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let context = MavenProducerContext::new(d.clone());
         d.push("resources/maven/hierarchy/subproject/pom.xml");
+
         let subfile = MavenFile::new(&d, &context).expect("maven file is parsed");
 
-        let sub_properties =
-            subfile.get_all_properties(&maven_files, &maven_files_by_project_info, &context);
+        let sub_properties = subfile.get_all_properties(&context);
         assert_eq!(sub_properties.len(), 6);
         assert_eq!(
             sub_properties.get("project.version").unwrap(),
