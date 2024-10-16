@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         repo:
-          - { org: "google", name: "guava", expectedErrors: 6 }
+          - { org: "google", name: "guava", expectedErrorsOsvScanner: 6, expectedErrorsTrivy: 29 }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,5 +33,9 @@ jobs:
           (cd /tmp && unzip osv-scanner.zip)
           sudo mv /tmp/osv-scanner /usr/bin/osv-scanner
           sudo chmod 755 /usr/bin/osv-scanner
+      - name: Install trivy
+        run: |
+          curl -o /tmp/trivy.deb "https://github.com/aquasecurity/trivy/releases/download/v0.18.3/trivy_0.18.3_Linux-64bit.deb"
+          sudo dpkg -i /tmp/trivy.deb
       - name: Run on repo
-        run: ./misc/compare-sboms.sh ${{ matrix.repo.org }}/${{ matrix.repo.name }} ${{ matrix.repo.expectedErrors }}
+        run: ./misc/compare-sboms.sh ${{ matrix.repo.org }}/${{ matrix.repo.name }} ${{ matrix.repo.expectedErrorsOsvScanner }} ${{ matrix.repo.expectedErrorsTrivy }}
