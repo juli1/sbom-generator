@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import json
 import sys
 
@@ -52,7 +54,7 @@ max_components = max(len(first_file_components), len(second_file_components))
 if errors > 0:
     accuracy = ((max_components - errors)/max_components) * 100
     print(f"{errors} errors found, tool accuracy {accuracy:.2f}")
-    sys.exit(1)
+    sys.exit(errors)
 
 print("no error found")
 sys.exit(0)

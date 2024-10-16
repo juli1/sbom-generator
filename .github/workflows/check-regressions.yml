@@ -1,0 +1,28 @@
+on:
+  push:
+
+name: Check for regressions in static analysis kernel
+
+jobs:
+  check_regressions:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repo:
+          - { org: "google", name: "guava", expectedErrors: 6 }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Checkout test repositories
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repo.org }}/${{ matrix.repo.name }}
+          path: ${{ matrix.repo.org }}/${{ matrix.repo.name }}
+
+      - name: Run on repo
+        run: ./misc/compare-sboms.sh ${{ matrix.repo.org }}/${{ matrix.repo.name }} ${{ matrix.repo.expectedErrors }}
