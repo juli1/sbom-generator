@@ -4,7 +4,7 @@ DIRECTORY=$1
 EXPECTED_NUMBER_ERRORS=$2
 TEST_DIR=$(mktemp -d)
 
-cargo build
+cargo build -r
 
 echo "testing on ${DIRECTORY}"
 echo "test dir on ${TEST_DIR}"
