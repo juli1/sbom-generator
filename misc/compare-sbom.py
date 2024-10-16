@@ -52,8 +52,8 @@ for name, version in second_file_components.items():
 
 max_components = max(len(first_file_components), len(second_file_components))
 if errors > 0:
-    accuracy = ((max_components - errors)/max_components) * 100
-    print(f"{errors} errors found, tool accuracy {accuracy:.2f}")
+    accuracy = (abs(max_components - errors)/max_components) * 100
+    print(f"{errors} errors found, tool accuracy {accuracy:.2f} (first file has {len(first_file_components)} components, second file has {len(second_file_components)} components)")
     sys.exit(errors)
 
 print("no error found")
