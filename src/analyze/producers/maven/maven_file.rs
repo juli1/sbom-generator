@@ -81,6 +81,10 @@ impl MavenDependency {
             location: self.location.clone(),
         }
     }
+
+    pub fn is_valid_for_sbom(&self) -> bool {
+        self.version.is_some() && !self.group_id.contains("$") && !self.artifact_id.contains("$")
+    }
 }
 
 impl From<&MavenDependency> for Dependency {
@@ -539,7 +543,6 @@ impl MavenFile {
                 );
                 let parent_information =
                     get_parent_information(&t, path, content.as_str(), context);
-                println!("parent={:?}", &parent_information);
                 let maven_file = MavenFile {
                     project_info: project_info.unwrap(),
                     path: path.clone(),
@@ -574,6 +577,23 @@ impl MavenFile {
             }
             println!("rel path: {:?}", rel_path);
             return Some(rel_path);
+        }
+        None
+    }
+
+    fn get_parent_by_project_info(&self, context: &MavenProducerContext) -> Option<MavenFile> {
+        if let Some(p) = &self.parent {
+            if let Some(a) = &p.artifact_id {
+                let project_info = MavenProjectInfo {
+                    artifact_id: a.to_string(),
+                    group_id: p.group_id.clone(),
+                    version: p.version.clone(),
+                };
+
+                if let Some(p) = context.get_maven_file_by_project_info(&project_info) {
+                    return Some(p.clone());
+                }
+            }
         }
         None
     }
@@ -631,6 +651,16 @@ impl MavenFile {
                     parent_maven_file.get_all_dependencies_from_dependency_management(context),
                 );
             }
+        } else {
+            println!("getting parent by key");
+            if let Some(parent_maven_file) = self.get_parent_by_project_info(context) {
+                println!("found parent by key");
+                res.extend(
+                    parent_maven_file.get_all_dependencies_from_dependency_management(context),
+                );
+            } else {
+                println!("not found parent by key");
+            }
         }
 
         res.extend(self.dependency_management.clone());
@@ -651,17 +681,30 @@ impl MavenFile {
             &self.get_all_dependencies_from_dependency_management(context);
 
         for dependency in &self.dependencies {
+            println!("dependency {}", dependency.artifact_id);
             if dependency.version.is_none() {
+                println!("dependency {} has no version", dependency.artifact_id);
                 let dep_from_dep_management =
                     dependencies_from_property_management.iter().find(|x| {
                         x.artifact_id == dependency.artifact_id && x.group_id == dependency.group_id
                     });
 
                 if let Some(dep) = dep_from_dep_management {
-                    res.push(dep.clone().enrich(properties));
+                    println!(
+                        "dependency {} found in dependency management",
+                        dependency.artifact_id
+                    );
+                    let enriched = dep.clone().enrich(properties);
+
+                    if enriched.is_valid_for_sbom() {
+                        res.push(enriched);
+                    }
                 }
             } else {
-                res.push(dependency.clone().enrich(properties));
+                let enriched = dependency.clone().enrich(properties);
+                if enriched.is_valid_for_sbom() {
+                    res.push(enriched);
+                }
             }
         }
 

@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         repo:
-          - { org: "google", name: "guava", expectedErrorsOsvScanner: 6, expectedErrorsTrivy: 29 }
+          - { org: "google", name: "guava", expectedErrorsOsvScanner: 0, expectedErrorsTrivy: 29 }
           - { org: "muh-nee", name: "crAPI", expectedErrorsOsvScanner: 0, expectedErrorsTrivy: 0 }
           - { org: "muh-nee", name: "BenchmarkJava", expectedErrorsOsvScanner: 1, expectedErrorsTrivy: 154 }
     steps:
