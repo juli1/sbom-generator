@@ -23,6 +23,15 @@ jobs:
         with:
           repository: ${{ matrix.repo.org }}/${{ matrix.repo.name }}
           path: ${{ matrix.repo.org }}/${{ matrix.repo.name }}
-
+      - name: Install dependencies
+        run: |
+          apt-get install unzip curl
+      - name: Install osv-scanner
+        run: |
+          mkdir /osv-scanner
+          curl -L -o "/osv-scanner/osv-scanner.zip" "https://github.com/DataDog/osv-scanner/releases/download/v0.9.0/osv-scanner_linux_amd64.zip" >/dev/null 2>&1 || exit 1
+          (cd /osv-scanner && unzip osv-scanner.zip)
+          mv /osv-scanner/osv-scanner /usr/bin/osv-scanner
+          chmod 755 /usr/bin/osv-scanner
       - name: Run on repo
         run: ./misc/compare-sboms.sh ${{ matrix.repo.org }}/${{ matrix.repo.name }} ${{ matrix.repo.expectedErrors }}
