@@ -35,7 +35,7 @@ jobs:
           sudo chmod 755 /usr/bin/osv-scanner
       - name: Install trivy
         run: |
-          curl -L -o /tmp/trivy.deb "https://github.com/aquasecurity/trivy/releases/download/v0.18.3/trivy_0.18.3_Linux-64bit.deb"
+          curl -L -o /tmp/trivy.deb "https://github.com/aquasecurity/trivy/releases/download/v0.56.2/trivy_0.56.2_Linux-64bit.deb"
           sudo dpkg -i /tmp/trivy.deb
       - name: Run on repo
         run: ./misc/compare-sboms.sh ${{ matrix.repo.org }}/${{ matrix.repo.name }} ${{ matrix.repo.expectedErrorsOsvScanner }} ${{ matrix.repo.expectedErrorsTrivy }}
